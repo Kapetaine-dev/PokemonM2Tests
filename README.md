@@ -39,9 +39,4 @@ Tous les tests suivent le nommage `should_..._when_...` et sont découpés en `/
 - **Controller (2 tests)** : avec `@WebMvcTest` et `MockMvc`, le service étant mocké. Je vérifie le 200 avec le bon JSON, et le 404 quand le dresseur n'existe pas.
 - Un dernier test vérifie simplement que l'application démarre.
 
-## Deux choix que j'assume
-
-- **`@ManyToOne` côté Pokémon** : un dresseur a plusieurs Pokémon, mais un Pokémon n'a qu'un seul dresseur. Avec un `@OneToOne`, un dresseur n'aurait pu avoir qu'un seul Pokémon.
-- **404 plutôt que 201** pour un dresseur introuvable : en HTTP, 201 veut dire « Created ». Pour une ressource qui n'existe pas, le code standard est 404.
-
 Merci pour votre lecture !
