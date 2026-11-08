@@ -1,41 +1,47 @@
 # Pokémon Management API
 
-Microservice Spring Boot 4 (Java 17) de gestion des dresseurs Pokémon, avec une suite de tests sur les trois couches.
+> **Petit mot avant de commencer :** il fallait rendre une vidéo de présentation, mais mon micro m'a lâché au moment de l'enregistrer. J'ai donc écrit ici ce que j'aurais expliqué à l'oral. Désolé pour ce contretemps !
 
-## Lancer le build et les tests
+## Le projet
+
+Il s'agit d'un microservice Spring Boot 4 (Java 17) pour la Ligue Pokémon. Il expose `GET /dresseurs/{id}`, qui renvoie le nom du dresseur, son nombre de Pokémon et son niveau. L'essentiel du travail porte sur les tests des trois couches.
+
+Pour lancer le build et les tests :
 
 ```bash
-./mvnw clean install        # Linux / macOS / Git Bash
-mvnw.cmd clean install      # Windows
+./mvnw clean install     # ou mvnw.cmd clean install sous Windows
 ```
 
-## Endpoint
+Les 20 tests passent et le build se termine en `BUILD SUCCESS`.
 
-`GET /dresseurs/{id}`
+## Comment c'est organisé
 
-| Cas                 | Statut          | Corps                                                         |
-|---------------------|-----------------|---------------------------------------------------------------|
-| Le dresseur existe  | `200 OK`        | `{"nomDresseur":"Sacha","nombrePokemons":3,"niveauDresseur":140}` |
-| Dresseur inconnu    | `404 Not Found` | `Dresseur introuvable`                                        |
+J'ai découpé le code en trois couches, chacune avec un seul rôle :
 
-## Règle métier : `DresseurService.calculerNiveauDresseur`
+- **Controller** : reçoit la requête et renvoie le bon code HTTP. Il ne calcule rien.
+- **Service** : contient la règle métier. Le controller ne le connaît qu'à travers son interface `IDresseurService`, ce qui me permet de le remplacer par un mock dans les tests.
+- **Repository** : s'occupe de l'accès à la base avec Spring Data JPA.
 
-- Base : somme des niveaux des Pokémon
-- +20 si le dresseur possède au moins 3 types distincts
-- +10 par Pokémon de niveau ≥ 50
-- Aucun Pokémon : niveau = 1
+Le client ne reçoit jamais l'entité directement, seulement un `DresseurDto` qui contient les trois champs demandés.
 
-## Tests
+## La règle de calcul du niveau
 
-| Couche     | Classe                   | Outils                                    |
-|------------|--------------------------|-------------------------------------------|
-| Repository | `DresseurRepositoryTest` | `@DataJpaTest`, H2, `src/test/resources/data.sql` |
-| Service    | `DresseurServiceTest`    | Mockito (`@Mock`, `when(...).thenReturn(...)`) |
-| Controller | `DresseurControllerTest` | `@WebMvcTest`, `MockMvc`, `@MockitoBean`  |
+On part de la somme des niveaux des Pokémon du dresseur. On ajoute **+20** s'il a au moins 3 types différents, et **+10** pour chaque Pokémon de niveau 50 ou plus. Un dresseur sans Pokémon est au niveau 1.
 
-Nommage : `should_[comportement]_when_[condition]()`. Chaque test est structuré en `// Arrange`, `// Act`, `// Assert`.
+Exemple avec Sacha : Pikachu (55), Salamèche (30) et Carapuce (25), ce qui donne 110. Ses trois types différents rapportent +20, et Pikachu, au-dessus de 50, rapporte +10. Sacha est donc au **niveau 140**.
 
-## Choix techniques
+## Les tests
 
-- **Relation `@ManyToOne` côté Pokémon** : un Pokémon appartient à un et un seul dresseur, un dresseur possède plusieurs Pokémon. `@OneToOne` imposerait une contrainte d'unicité sur `id_dresseur` (un seul Pokémon par dresseur).
-- **`404 Not Found` pour un dresseur inexistant** : le sujet mentionne 201, mais 201 signifie « Created » en HTTP ; 404 est le code standard pour une ressource absente.
+Tous les tests suivent le nommage `should_..._when_...` et sont découpés en `// Arrange`, `// Act` et `// Assert`.
+
+- **Repository (6 tests)** : avec `@DataJpaTest` sur une vraie base H2, remplie par `data.sql` (Sacha a 3 Pokémon, Ondine 1, Pierre aucun). Je vérifie le chargement des données, la relation dresseur → Pokémon et la sauvegarde.
+- **Service (11 tests)** : en isolation totale, sans Spring ni base. Le repository est mocké avec `when(...).thenReturn(...)`. J'ai couvert le cas normal, le cas sans Pokémon, chaque bonus, le cumul des bonus et le dresseur inconnu. J'ai aussi testé les cas limites : un niveau 49 ne donne pas de bonus alors qu'un niveau 50 en donne, et 3 Pokémon de seulement 2 types ne donnent pas le bonus diversité.
+- **Controller (2 tests)** : avec `@WebMvcTest` et `MockMvc`, le service étant mocké. Je vérifie le 200 avec le bon JSON, et le 404 quand le dresseur n'existe pas.
+- Un dernier test vérifie simplement que l'application démarre.
+
+## Deux choix que j'assume
+
+- **`@ManyToOne` côté Pokémon** : un dresseur a plusieurs Pokémon, mais un Pokémon n'a qu'un seul dresseur. Avec un `@OneToOne`, un dresseur n'aurait pu avoir qu'un seul Pokémon.
+- **404 plutôt que 201** pour un dresseur introuvable : en HTTP, 201 veut dire « Created ». Pour une ressource qui n'existe pas, le code standard est 404.
+
+Merci pour votre lecture !
